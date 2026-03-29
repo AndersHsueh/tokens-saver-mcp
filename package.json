@@ -1,0 +1,31 @@
+{
+  "name": "tokens-saver-mcp",
+  "version": "0.1.0",
+  "description": "Local MCP server wrapping GLM-4.7-Flash with 7 narrow-purpose tools to reduce main model token usage",
+  "type": "module",
+  "main": "dist/server.js",
+  "bin": {
+    "tokens-saver-mcp": "dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "node --watch --loader ts-node/esm src/server.ts",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.10.2",
+    "openai": "^4.98.0",
+    "zod": "^3.24.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.2",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

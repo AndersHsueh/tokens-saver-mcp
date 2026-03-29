@@ -1,5 +1,6 @@
 import OpenAI from "openai";
-import type { Config } from "../config.js";
+import type { ProviderConfig } from "../config/settings.js";
+import type { Provider, TextCallOptions, JsonCallOptions } from "./types.js";
 import {
   GlmError,
   emptyResponseError,
@@ -9,46 +10,35 @@ import {
 import { safeParseJson } from "../utils/json.js";
 import { logCall } from "../utils/logger.js";
 import { withTimeout } from "../utils/timeout.js";
-import type { ZodType } from "zod";
-
-export interface GlmCallOptions {
-  toolName: string;
-  systemPrompt: string;
-  userPrompt: string;
-  maxOutputTokens?: number;
-  temperature?: number;
-  timeoutMs?: number;
-}
-
-export interface GlmJsonCallOptions<T> extends GlmCallOptions {
-  outputSchema: ZodType<T>;
-}
 
 function isRetryableError(err: unknown): boolean {
   if (err instanceof GlmError) return err.retryable;
   return false;
 }
 
-export class GlmClient {
+export class OpenAICompatibleProvider implements Provider {
   private readonly openai: OpenAI;
 
-  constructor(private readonly config: Config) {
+  constructor(
+    private readonly config: ProviderConfig,
+    private readonly apiKey: string,
+  ) {
     this.openai = new OpenAI({
       baseURL: config.baseUrl,
-      apiKey: config.apiKey || "no-key",
+      apiKey: apiKey || "no-key",
     });
   }
 
-  async callText(options: GlmCallOptions): Promise<string> {
+  async generateText(options: TextCallOptions): Promise<string> {
     const {
       toolName,
       systemPrompt,
       userPrompt,
       maxOutputTokens = 512,
       temperature = this.config.temperature,
-      timeoutMs = this.config.timeoutMs,
     } = options;
 
+    const timeoutMs = this.config.timeoutMs;
     const inputChars = systemPrompt.length + userPrompt.length;
     const start = Date.now();
     let retried = false;
@@ -56,10 +46,9 @@ export class GlmClient {
 
     for (let attempt = 0; attempt <= this.config.maxRetries; attempt++) {
       if (attempt > 0) retried = true;
-
       try {
         const result = await withTimeout(
-          this.doTextRequest(systemPrompt, userPrompt, maxOutputTokens, temperature),
+          this.doRequest(systemPrompt, userPrompt, maxOutputTokens, temperature),
           timeoutMs,
           toolName,
         );
@@ -91,8 +80,8 @@ export class GlmClient {
     throw lastError;
   }
 
-  async callJson<T>(options: GlmJsonCallOptions<T>): Promise<T> {
-    const raw = await this.callText({
+  async generateJson<T>(options: JsonCallOptions<T>): Promise<T> {
+    const raw = await this.generateText({
       ...options,
       maxOutputTokens: options.maxOutputTokens ?? 1024,
     });
@@ -108,7 +97,7 @@ export class GlmClient {
     return zodResult.data;
   }
 
-  private async doTextRequest(
+  private async doRequest(
     systemPrompt: string,
     userPrompt: string,
     maxOutputTokens: number,

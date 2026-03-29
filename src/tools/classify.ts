@@ -1,11 +1,11 @@
-import type { GlmClient } from "../client/glmClient.js";
+import type { Provider } from "../providers/types.js";
 import { classifyPrompt } from "../prompts/classify.js";
 import { ClassifyInputSchema, ClassifyOutputSchema } from "../schemas/classify.js";
 import type { ClassifyInput, ClassifyOutput } from "../schemas/classify.js";
 import { formatGlmError, GlmError } from "../utils/errors.js";
 
 export async function runClassify(
-  client: GlmClient,
+  provider: Provider,
   rawInput: unknown,
 ): Promise<{ content: string; structuredContent: ClassifyOutput }> {
   const parsed = ClassifyInputSchema.safeParse(rawInput);
@@ -23,8 +23,8 @@ export async function runClassify(
     .join("\n\n");
 
   try {
-    const result = await client.callJson<ClassifyOutput>({
-      toolName: "local_classify",
+    const result = await provider.generateJson<ClassifyOutput>({
+      toolName: "tsm_classify",
       systemPrompt: classifyPrompt,
       userPrompt,
       outputSchema: ClassifyOutputSchema,
@@ -32,7 +32,6 @@ export async function runClassify(
       temperature: 0.1,
     });
 
-    // Validate that label is from the provided list
     if (!input.labels.includes(result.label)) {
       throw new Error(`Model returned label '${result.label}' not in provided labels list.`);
     }
@@ -40,9 +39,7 @@ export async function runClassify(
     const content = `Label: ${result.label} (confidence: ${result.confidence.toFixed(2)})\nReason: ${result.reason}`;
     return { content, structuredContent: result };
   } catch (err) {
-    if (err instanceof GlmError) {
-      throw new Error(formatGlmError(err));
-    }
+    if (err instanceof GlmError) throw new Error(formatGlmError(err));
     throw err;
   }
 }

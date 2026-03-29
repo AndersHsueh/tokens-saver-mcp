@@ -1,5 +1,6 @@
 export type GlmErrorCode =
   | "CONFIG_ERROR"
+  | "PROVIDER_NOT_FOUND"
   | "UPSTREAM_TIMEOUT"
   | "UPSTREAM_HTTP_ERROR"
   | "EMPTY_MODEL_RESPONSE"
@@ -21,6 +22,16 @@ export class GlmError extends Error {
 
 export function configError(message: string): GlmError {
   return new GlmError("CONFIG_ERROR", message, false, "Check environment variables.", undefined);
+}
+
+export function providerNotFoundError(providerName: string): GlmError {
+  return new GlmError(
+    "PROVIDER_NOT_FOUND",
+    `Provider '${providerName}' is not defined in settings.`,
+    false,
+    "Check ~/.tokens-saver-mcp/settings.json providers section.",
+    undefined,
+  );
 }
 
 export function timeoutError(toolName: string, timeoutMs: number): GlmError {

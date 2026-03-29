@@ -1,11 +1,11 @@
-import type { GlmClient } from "../client/glmClient.js";
+import type { Provider } from "../providers/types.js";
 import { taskExtractPrompt } from "../prompts/taskExtract.js";
 import { TaskExtractInputSchema, TaskExtractOutputSchema } from "../schemas/taskExtract.js";
 import type { TaskExtractInput, TaskExtractOutput } from "../schemas/taskExtract.js";
 import { formatGlmError, GlmError } from "../utils/errors.js";
 
 export async function runTaskExtract(
-  client: GlmClient,
+  provider: Provider,
   rawInput: unknown,
 ): Promise<{ content: string; structuredContent: TaskExtractOutput }> {
   const parsed = TaskExtractInputSchema.safeParse(rawInput);
@@ -20,8 +20,8 @@ export async function runTaskExtract(
   ].join("\n\n");
 
   try {
-    const result = await client.callJson<TaskExtractOutput>({
-      toolName: "local_task_extract",
+    const result = await provider.generateJson<TaskExtractOutput>({
+      toolName: "tsm_task_extract",
       systemPrompt: taskExtractPrompt,
       userPrompt,
       outputSchema: TaskExtractOutputSchema,
@@ -36,9 +36,7 @@ export async function runTaskExtract(
     const content = `Extracted ${result.tasks.length} task(s):\n${taskSummary}${result.tasks.length > 3 ? "\n…" : ""}`;
     return { content, structuredContent: result };
   } catch (err) {
-    if (err instanceof GlmError) {
-      throw new Error(formatGlmError(err));
-    }
+    if (err instanceof GlmError) throw new Error(formatGlmError(err));
     throw err;
   }
 }

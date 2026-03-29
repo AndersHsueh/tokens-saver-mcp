@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   GlmError,
   configError,
+  providerNotFoundError,
   timeoutError,
   httpError,
   emptyResponseError,
@@ -18,8 +19,15 @@ describe("error factories", () => {
     expect(err.retryable).toBe(false);
   });
 
+  it("providerNotFoundError is not retryable", () => {
+    const err = providerNotFoundError("my_provider");
+    expect(err.code).toBe("PROVIDER_NOT_FOUND");
+    expect(err.retryable).toBe(false);
+    expect(err.message).toContain("my_provider");
+  });
+
   it("timeoutError is retryable", () => {
-    const err = timeoutError("local_classify", 20000);
+    const err = timeoutError("tsm_classify", 20000);
     expect(err.code).toBe("UPSTREAM_TIMEOUT");
     expect(err.retryable).toBe(true);
   });

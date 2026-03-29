@@ -1,11 +1,11 @@
-import type { GlmClient } from "../client/glmClient.js";
+import type { Provider } from "../providers/types.js";
 import { extractJsonPrompt } from "../prompts/extractJson.js";
 import { ExtractJsonInputSchema, ExtractJsonOutputSchema } from "../schemas/extractJson.js";
 import type { ExtractJsonInput, ExtractJsonOutput } from "../schemas/extractJson.js";
 import { formatGlmError, GlmError } from "../utils/errors.js";
 
 export async function runExtractJson(
-  client: GlmClient,
+  provider: Provider,
   rawInput: unknown,
 ): Promise<{ content: string; structuredContent: ExtractJsonOutput }> {
   const parsed = ExtractJsonInputSchema.safeParse(rawInput);
@@ -21,8 +21,8 @@ export async function runExtractJson(
   ].join("\n\n");
 
   try {
-    const result = await client.callJson<ExtractJsonOutput>({
-      toolName: "local_extract_json",
+    const result = await provider.generateJson<ExtractJsonOutput>({
+      toolName: "tsm_extract_json",
       systemPrompt: extractJsonPrompt,
       userPrompt,
       outputSchema: ExtractJsonOutputSchema,
@@ -35,9 +35,7 @@ export async function runExtractJson(
     const content = `Extracted ${fieldCount} field(s). Missing: ${missingCount > 0 ? result.missing_fields.join(", ") : "none"}.`;
     return { content, structuredContent: result };
   } catch (err) {
-    if (err instanceof GlmError) {
-      throw new Error(formatGlmError(err));
-    }
+    if (err instanceof GlmError) throw new Error(formatGlmError(err));
     throw err;
   }
 }

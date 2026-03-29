@@ -1,11 +1,11 @@
-import type { GlmClient } from "../client/glmClient.js";
+import type { Provider } from "../providers/types.js";
 import { codegenPrompt } from "../prompts/codegen.js";
 import { CodegenInputSchema, CodegenOutputSchema } from "../schemas/codegen.js";
 import type { CodegenInput, CodegenOutput } from "../schemas/codegen.js";
 import { formatGlmError, GlmError } from "../utils/errors.js";
 
 export async function runCodegen(
-  client: GlmClient,
+  provider: Provider,
   rawInput: unknown,
 ): Promise<{ content: string; structuredContent: CodegenOutput }> {
   const parsed = CodegenInputSchema.safeParse(rawInput);
@@ -21,8 +21,8 @@ export async function runCodegen(
   const userPrompt = parts.join("\n\n");
 
   try {
-    const result = await client.callJson<CodegenOutput>({
-      toolName: "local_codegen_small_patch",
+    const result = await provider.generateJson<CodegenOutput>({
+      toolName: "tsm_codegen_small_patch",
       systemPrompt: codegenPrompt,
       userPrompt,
       outputSchema: CodegenOutputSchema,
@@ -34,9 +34,7 @@ export async function runCodegen(
     const content = `Generated code (${input.language ?? "any"}):\n${codePreview}\n${result.explanation}`;
     return { content, structuredContent: result };
   } catch (err) {
-    if (err instanceof GlmError) {
-      throw new Error(formatGlmError(err));
-    }
+    if (err instanceof GlmError) throw new Error(formatGlmError(err));
     throw err;
   }
 }

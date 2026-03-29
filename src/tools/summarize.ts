@@ -1,11 +1,11 @@
-import type { GlmClient } from "../client/glmClient.js";
+import type { Provider } from "../providers/types.js";
 import { summarizePrompt } from "../prompts/summarize.js";
 import { SummarizeInputSchema, SummarizeOutputSchema } from "../schemas/summarize.js";
 import type { SummarizeInput, SummarizeOutput } from "../schemas/summarize.js";
 import { formatGlmError, GlmError } from "../utils/errors.js";
 
 export async function runSummarize(
-  client: GlmClient,
+  provider: Provider,
   rawInput: unknown,
 ): Promise<{ content: string; structuredContent: SummarizeOutput }> {
   const parsed = SummarizeInputSchema.safeParse(rawInput);
@@ -22,8 +22,8 @@ export async function runSummarize(
   ].join("\n\n");
 
   try {
-    const result = await client.callJson<SummarizeOutput>({
-      toolName: "local_summarize_long_text",
+    const result = await provider.generateJson<SummarizeOutput>({
+      toolName: "tsm_summarize",
       systemPrompt: summarizePrompt,
       userPrompt,
       outputSchema: SummarizeOutputSchema,
@@ -34,9 +34,7 @@ export async function runSummarize(
     const content = `Summary: ${result.summary}\nBullets: ${result.bullets.length}. Risks: ${result.risks.length}.`;
     return { content, structuredContent: result };
   } catch (err) {
-    if (err instanceof GlmError) {
-      throw new Error(formatGlmError(err));
-    }
+    if (err instanceof GlmError) throw new Error(formatGlmError(err));
     throw err;
   }
 }

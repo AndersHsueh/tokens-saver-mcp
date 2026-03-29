@@ -1,11 +1,11 @@
-import type { GlmClient } from "../client/glmClient.js";
+import type { Provider } from "../providers/types.js";
 import { diffDigestPrompt } from "../prompts/diffDigest.js";
 import { DiffDigestInputSchema, DiffDigestOutputSchema } from "../schemas/diffDigest.js";
 import type { DiffDigestInput, DiffDigestOutput } from "../schemas/diffDigest.js";
 import { formatGlmError, GlmError } from "../utils/errors.js";
 
 export async function runDiffDigest(
-  client: GlmClient,
+  provider: Provider,
   rawInput: unknown,
 ): Promise<{ content: string; structuredContent: DiffDigestOutput }> {
   const parsed = DiffDigestInputSchema.safeParse(rawInput);
@@ -22,8 +22,8 @@ export async function runDiffDigest(
     .join("\n\n");
 
   try {
-    const result = await client.callJson<DiffDigestOutput>({
-      toolName: "local_diff_digest",
+    const result = await provider.generateJson<DiffDigestOutput>({
+      toolName: "tsm_diff_digest",
       systemPrompt: diffDigestPrompt,
       userPrompt,
       outputSchema: DiffDigestOutputSchema,
@@ -39,9 +39,7 @@ export async function runDiffDigest(
     ].join("\n");
     return { content, structuredContent: result };
   } catch (err) {
-    if (err instanceof GlmError) {
-      throw new Error(formatGlmError(err));
-    }
+    if (err instanceof GlmError) throw new Error(formatGlmError(err));
     throw err;
   }
 }

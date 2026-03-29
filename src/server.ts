@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { loadConfig } from "./config.js";
-import { GlmClient } from "./client/glmClient.js";
+import { loadSettings } from "./config/settings.js";
+import { ProviderRegistry } from "./providers/registry.js";
 import { ClassifyInputSchema } from "./schemas/classify.js";
 import { ExtractJsonInputSchema } from "./schemas/extractJson.js";
 import { SummarizeInputSchema } from "./schemas/summarize.js";
@@ -18,15 +18,21 @@ import { runCodegen } from "./tools/codegen.js";
 import { runDiffDigest } from "./tools/diffDigest.js";
 import { runTaskExtract } from "./tools/taskExtract.js";
 
-const config = loadConfig();
-const client = new GlmClient(config);
+let settings;
+try {
+  settings = loadSettings();
+} catch (err) {
+  process.stderr.write(`[tsm] Failed to load settings: ${String(err)}\n`);
+  process.exit(1);
+}
+
+const registry = new ProviderRegistry(settings);
 
 const server = new McpServer({
   name: "tokens-saver-mcp",
-  version: "0.1.0",
+  version: "0.2.0",
 });
 
-// Helper: convert Zod schema to JSON Schema shape for MCP tool registration
 function zodToShape<T extends Record<string, import("zod").ZodTypeAny>>(
   schema: import("zod").ZodObject<T>,
 ) {
@@ -34,11 +40,12 @@ function zodToShape<T extends Record<string, import("zod").ZodTypeAny>>(
 }
 
 server.tool(
-  "local_classify",
-  "Classify text into one of the provided labels using a local model. Returns label, confidence score, and a brief reason. Useful for intent classification, routing decisions, and tagging.",
+  "tsm_classify",
+  "Classify text into one of the provided labels using a budget model. Returns label, confidence score, and a brief reason. Useful for intent classification, routing decisions, and tagging.",
   zodToShape(ClassifyInputSchema),
   async (input) => {
-    const result = await runClassify(client, input);
+    const provider = registry.getForTool("tsm_classify");
+    const result = await runClassify(provider, input);
     return {
       content: [{ type: "text", text: result.content }],
       structuredContent: result.structuredContent,
@@ -47,11 +54,12 @@ server.tool(
 );
 
 server.tool(
-  "local_extract_json",
+  "tsm_extract_json",
   "Extract structured fields from long text according to a schema description. Returns a JSON object with extracted data and a list of missing fields. Useful for parsing documents, issues, logs.",
   zodToShape(ExtractJsonInputSchema),
   async (input) => {
-    const result = await runExtractJson(client, input);
+    const provider = registry.getForTool("tsm_extract_json");
+    const result = await runExtractJson(provider, input);
     return {
       content: [{ type: "text", text: result.content }],
       structuredContent: result.structuredContent,
@@ -60,11 +68,12 @@ server.tool(
 );
 
 server.tool(
-  "local_summarize_long_text",
+  "tsm_summarize",
   "Compress long text into a concise summary with bullet points and risk flags. Useful for compressing long conversations, logs, documents, or diff context before passing to the main model.",
   zodToShape(SummarizeInputSchema),
   async (input) => {
-    const result = await runSummarize(client, input);
+    const provider = registry.getForTool("tsm_summarize");
+    const result = await runSummarize(provider, input);
     return {
       content: [{ type: "text", text: result.content }],
       structuredContent: result.structuredContent,
@@ -73,11 +82,12 @@ server.tool(
 );
 
 server.tool(
-  "local_rewrite",
+  "tsm_rewrite",
   "Rewrite text in a different style (concise, formal, technical, friendly, or translate between Chinese and English) without changing the core facts.",
   zodToShape(RewriteInputSchema),
   async (input) => {
-    const result = await runRewrite(client, input);
+    const provider = registry.getForTool("tsm_rewrite");
+    const result = await runRewrite(provider, input);
     return {
       content: [{ type: "text", text: result.content }],
       structuredContent: result.structuredContent,
@@ -86,11 +96,12 @@ server.tool(
 );
 
 server.tool(
-  "local_codegen_small_patch",
-  "Generate small code snippets or function-level patches. Scoped to single functions, regex, SQL, scripts, or unit test samples. NOT for multi-file or architectural designs.",
+  "tsm_codegen_small_patch",
+  "Generate small code snippets or function-level patches using a budget model. Scoped to single functions, regex, SQL, scripts, or unit test samples. NOT for multi-file or architectural designs.",
   zodToShape(CodegenInputSchema),
   async (input) => {
-    const result = await runCodegen(client, input);
+    const provider = registry.getForTool("tsm_codegen_small_patch");
+    const result = await runCodegen(provider, input);
     return {
       content: [{ type: "text", text: result.content }],
       structuredContent: result.structuredContent,
@@ -99,11 +110,12 @@ server.tool(
 );
 
 server.tool(
-  "local_diff_digest",
+  "tsm_diff_digest",
   "Compress a git diff into a structured summary of changed areas, behavior changes, risks, and a one-paragraph overview. Helps the main model quickly understand large diffs.",
   zodToShape(DiffDigestInputSchema),
   async (input) => {
-    const result = await runDiffDigest(client, input);
+    const provider = registry.getForTool("tsm_diff_digest");
+    const result = await runDiffDigest(provider, input);
     return {
       content: [{ type: "text", text: result.content }],
       structuredContent: result.structuredContent,
@@ -112,11 +124,12 @@ server.tool(
 );
 
 server.tool(
-  "local_task_extract",
+  "tsm_task_extract",
   "Extract an actionable task list from unstructured text (meeting notes, daily reports, requirements). Returns tasks with optional owner, due date, status, and notes.",
   zodToShape(TaskExtractInputSchema),
   async (input) => {
-    const result = await runTaskExtract(client, input);
+    const provider = registry.getForTool("tsm_task_extract");
+    const result = await runTaskExtract(provider, input);
     return {
       content: [{ type: "text", text: result.content }],
       structuredContent: result.structuredContent,
@@ -127,10 +140,10 @@ server.tool(
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  process.stderr.write("[tokens-saver-mcp] Server started on stdio\n");
+  process.stderr.write("[tsm] tokens-saver-mcp v0.2.0 started (stdio)\n");
 }
 
 main().catch((err) => {
-  process.stderr.write(`[tokens-saver-mcp] Fatal error: ${String(err)}\n`);
+  process.stderr.write(`[tsm] Fatal error: ${String(err)}\n`);
   process.exit(1);
 });

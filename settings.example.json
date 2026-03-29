@@ -1,0 +1,32 @@
+{
+  "defaultProvider": "local",
+  "providers": {
+    "local": {
+      "type": "openai_compatible",
+      "baseUrl": "http://127.0.0.1:1234",
+      "apiKeyEnv": "",
+      "model": "zai-org/glm-4.7-flash",
+      "timeoutMs": 20000,
+      "maxRetries": 2,
+      "temperature": 0.2
+    },
+    "remote_budget_cn": {
+      "type": "openai_compatible",
+      "baseUrl": "https://api.minimax.chat/compatible-mode/v1",
+      "apiKeyEnv": "MINIMAX_API_KEY",
+      "model": "MiniMax-M2.7",
+      "timeoutMs": 20000,
+      "maxRetries": 2,
+      "temperature": 0.2
+    }
+  },
+  "toolRouting": {
+    "tsm_classify": "local",
+    "tsm_extract_json": "remote_budget_cn",
+    "tsm_summarize": "remote_budget_cn",
+    "tsm_rewrite": "remote_budget_cn",
+    "tsm_codegen_small_patch": "remote_budget_cn",
+    "tsm_diff_digest": "remote_budget_cn",
+    "tsm_task_extract": "local"
+  }
+}
